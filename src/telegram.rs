@@ -3,21 +3,16 @@ use std::vec::Vec;
 use anyhow::{Result, Context};
 
 
-#[derive(Clone)]
-pub struct Conf {
-  pub token: String,
+fn url_get_updates(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/getUpdates", token)
 }
 
-impl Conf {
-  fn url_get_updates(&self) -> String /* dyn reqwest::IntoUrl */ {
-    format!("https://api.telegram.org/bot{}/getUpdates", self.token)
-  }
-  fn url_send_message(&self) -> String /* dyn reqwest::IntoUrl */ {
-    format!("https://api.telegram.org/bot{}/sendMessage", self.token)
-  }
-  fn url_send_video(&self) -> String /* dyn reqwest::IntoUrl */ {
-    format!("https://api.telegram.org/bot{}/sendVideo", self.token)
-  }
+fn url_send_message(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/sendMessage", token)
+}
+
+fn url_send_video(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/sendVideo", token)
 }
 
 
@@ -26,9 +21,9 @@ use crate::telegram_messages as messages;
 
 /// Return (Option<update_id>, vec![(chat_id, username, text)])
 pub async fn get_updates(
-  conf: Conf, offset: Option<i64>)
+  token: &String, offset: Option<i64>)
   -> Result<(Option<i64>, Vec<(i64, String, String)>)> {
-  let url = conf.url_get_updates();
+  let url = url_get_updates(token);
   // json::<serde_json::Value>
   let request = reqwest::Client::new().get(url);
   let request = match offset {
@@ -58,9 +53,9 @@ pub async fn get_updates(
 }
 
 pub async fn send_message(
-  conf: Conf, chat_id: i64, text: String)
+  token: &String, chat_id: i64, text: String)
   -> Result<()> {
-  let url = conf.url_send_message();
+  let url = url_send_message(token);
   let data = messages::SendMessage {chat_id, text, disable_notification: false};
   let client = reqwest::Client::new();
   let res = client.post(url).json(&data).send().await?;
@@ -72,9 +67,9 @@ pub async fn send_message(
 }
 
 pub async fn send_video(
-  conf: Conf, chat_id: i64, caption: String, video: String)
+  token: &String, chat_id: i64, caption: String, video: String)
   -> Result<()> {
-  let url = conf.url_send_video();
+  let url = url_send_video(token);
   let request = reqwest::Client::new().post(url).query(&[
     ("chat_id", chat_id.to_string()),
     ("caption", caption),

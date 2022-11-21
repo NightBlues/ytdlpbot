@@ -10,15 +10,26 @@ async fn main() -> Result<()> {
 
   let telegram_token = std::env::var("TELEGRAM_TOKEN")
     .expect("Specify TELEGRAM_TOKEN env var.");
-  let conf = telegram::Conf {
-    token: telegram_token,
+  let vcodec_exclude = std::env::var("VCODEC_EXCLUDE")
+    .unwrap_or("".to_string());
+    // .expect("Specify VCODEC_EXCLUDE env var.");
+  let vcodec_exclude : Vec<String> = vcodec_exclude.split(",")
+    .into_iter()
+    .map(|x| x.to_string()).collect();
+  let max_filesize : i64 = std::env::var("MAX_FILESIZE")
+    .map_err(|x| x.to_string())
+    .and_then(|x| x.parse::<i64>().map_err(|x| x.to_string()))
+    .unwrap_or(50 * 1024 * 1024);
+  let conf = commands::Config {
+    max_filesize,
+    vcodec_exclude,
+    telegram_token,
   };
-
   println!("Started...");
   let mut update_id : Option<i64> = None;
   loop {
     let res =
-      telegram::get_updates(conf.clone(), update_id).await;
+      telegram::get_updates(&conf.telegram_token, update_id).await;
     let messages = match res {
       Ok((update_id_, messages)) => {
         // println!("update_id={:?}", update_id_);
