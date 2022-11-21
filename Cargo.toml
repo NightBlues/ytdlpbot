@@ -1,0 +1,18 @@
+[package]
+name = "ytdlpbot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version="0.11.12", features=["json", "gzip", "deflate", "multipart", "stream"]}
+anyhow = "1"
+tokio = { version="1.21.2", features=["full"]}
+serde_json = "1.0"
+serde = { version="1", features=["derive"]}
+chrono = "0.4.22"
+tokio-util = { version="0.7.4", features=["codec"]}
+# uuid = { version="1.2.1", features=["v4"] }
+url = "2.3.1"
+itertools = "0.10.5"
