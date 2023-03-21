@@ -93,6 +93,21 @@ pub struct SendMessage {
   pub chat_id: i64,
   pub text: String,
   pub disable_notification: bool,
+  pub disable_web_page_preview: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DeleteMessage {
+  pub chat_id: i64,
+  pub message_id: i64,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EditMessageText {
+  pub chat_id: i64,
+  pub message_id: i64,
+  pub text: String,
+  pub disable_web_page_preview: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -124,13 +139,32 @@ impl fmt::Display for Video {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct Audio {
+  pub duration: i64,
+  pub file_id: String,
+  pub file_name: String,
+  pub file_size: i64,
+  pub file_unique_id: String,
+  pub mime_type: String,
+}
+
+impl fmt::Display for Audio {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "Audio {} {}sec", self.file_id, self.duration)
+  }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct SendMessageResponseInner {
+  pub message_id: i64,
   pub chat: Chat,
   pub from: From,
   #[serde(default)]
   pub text: Option<String>,
   #[serde(default)]
   pub video: Option<Video>,
+  #[serde(default)]
+  pub audio: Option<Audio>,
 }
 
 impl fmt::Display for SendMessageResponseInner {
@@ -138,9 +172,10 @@ impl fmt::Display for SendMessageResponseInner {
     let content = match self {
       SendMessageResponseInner {text: Some(text), ..} => text.clone(),
       SendMessageResponseInner {video: Some(video), ..} => video.to_string(),
+      SendMessageResponseInner {audio: Some(audio), ..} => audio.to_string(),
       _ => "not implemented".to_string(),
     };
-    write!(f, "Sent message to {}: {}", self.chat.username, content)
+    write!(f, "Sent message {} to {}: {}", self.message_id, self.chat.username, content)
   }
 }
 

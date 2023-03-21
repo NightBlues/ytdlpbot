@@ -25,6 +25,7 @@ async fn main() -> Result<()> {
     vcodec_exclude,
     telegram_token,
   };
+  let state = commands::State::new();
   println!("Started...");
   let mut update_id : Option<i64> = None;
   loop {
@@ -38,7 +39,7 @@ async fn main() -> Result<()> {
       },
       Err(e) => { println!("Error: {}", e); vec![] },
     };
-    commands::react_messages(conf.clone(), messages.clone()).await?;
+    commands::react_messages(&conf, &state, messages.clone()).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await
   }
 

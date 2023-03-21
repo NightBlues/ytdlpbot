@@ -11,8 +11,20 @@ fn url_send_message(token: &String) -> String /* dyn reqwest::IntoUrl */ {
   format!("https://api.telegram.org/bot{}/sendMessage", token)
 }
 
+fn url_delete_message(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/deleteMessage", token)
+}
+
+fn url_edit_message_text(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/editMessageText", token)
+}
+
 fn url_send_video(token: &String) -> String /* dyn reqwest::IntoUrl */ {
   format!("https://api.telegram.org/bot{}/sendVideo", token)
+}
+
+fn url_send_audio(token: &String) -> String /* dyn reqwest::IntoUrl */ {
+  format!("https://api.telegram.org/bot{}/sendAudio", token)
 }
 
 
@@ -54,16 +66,44 @@ pub async fn get_updates(
 
 pub async fn send_message(
   token: &String, chat_id: i64, text: String)
-  -> Result<()> {
+  -> Result<messages::SendMessageResponse> {
   let url = url_send_message(token);
-  let data = messages::SendMessage {chat_id, text, disable_notification: false};
+  let data = messages::SendMessage {chat_id, text, disable_notification: false, disable_web_page_preview: true};
   let client = reqwest::Client::new();
   let res = client.post(url).json(&data).send().await?;
   // let res = res.json::<serde_json::Value>().await?;
   let res = res.json::<messages::SendMessageResponse>().await?;
   println!("{}", res);
   
+  Ok(res)
+}
+
+pub async fn delete_message(
+  token: &String, chat_id: i64, message_id: i64)
+  -> Result<()> {
+  let url = url_delete_message(token);
+  let data = messages::DeleteMessage {chat_id, message_id};
+  let client = reqwest::Client::new();
+  let res = client.post(url).json(&data).send().await?;
+  let res = res.json::<serde_json::Value>().await?;
+  // let res = res.json::<messages::SendMessageResponse>().await?;
+  println!("delete response for {}: {}", message_id, res);
+  
   Ok(())
+}
+
+pub async fn edit_message_text(
+  token: &String, chat_id: i64, message_id: i64, text: String)
+  -> Result<messages::SendMessageResponse> {
+  let url = url_edit_message_text(token);
+  let data = messages::EditMessageText {chat_id, message_id, text, disable_web_page_preview: true};
+  let client = reqwest::Client::new();
+  let res = client.post(url).json(&data).send().await?;
+  // let res = res.json::<serde_json::Value>().await?;
+  let res = res.json::<messages::SendMessageResponse>().await?;
+  println!("{}", res);
+  
+  Ok(res)
 }
 
 pub async fn send_video(
@@ -87,6 +127,32 @@ pub async fn send_video(
   // let res = res.json::<serde_json::Value>().await?;
   let res = res.json::<messages::SendMessageResponse>().await
     .context("Could not parse sendVideo response")?;
+  println!("{}", res);
+  
+  Ok(())
+}
+
+pub async fn send_audio(
+  token: &String, chat_id: i64, caption: String, audio: String)
+  -> Result<()> {
+  let url = url_send_audio(token);
+  let request = reqwest::Client::new().post(url).query(&[
+    ("chat_id", chat_id.to_string()),
+    ("caption", caption),
+  ]);
+  let file = tokio::fs::File::open(audio.clone()).await?;
+  let stream = tokio_util::codec::FramedRead::new(
+    file, tokio_util::codec::BytesCodec::new());
+  use reqwest::multipart::{Part, Form};
+  let part = Part::stream(reqwest::Body::wrap_stream(stream))
+    .file_name(audio);
+    // .mime_str(format!("audio/{}", ext).as_str())?;
+  // todo: use libmagic to set mime type
+  let data = Form::new().part("audio", part);
+  let res = request.multipart(data).send().await?;
+  // let res = res.json::<serde_json::Value>().await?;
+  let res = res.json::<messages::SendMessageResponse>().await
+    .context("Could not parse sendAudio response")?;
   println!("{}", res);
   
   Ok(())
