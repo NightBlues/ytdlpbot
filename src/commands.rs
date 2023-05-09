@@ -78,7 +78,11 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   let message_id = response.result.message_id;
   // telegram::send_message(conf.clone(), chat_id, text).await?
   // let url = "https://youtu.be/kseKKaa94vg".to_string();
-  let video = ytdlp::describe(url.clone()).await?;
+  let video = ytdlp::describe(url.clone()).await;
+  if let Err(e) = &video {
+     telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
+  };
+  let video = video?;
   // println!("{:#?}", video);
   println!("{}", video);
   let mode = state.get_mode(chat_id).await;

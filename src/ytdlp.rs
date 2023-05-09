@@ -56,7 +56,10 @@ impl std::fmt::Display for Video {
 
 
 pub async fn describe(url: url::Url) -> Result<Video> {
-  let output = Command::new("yt-dlp").arg("-j").arg(url.to_string()).output();
+  let mut cmd = Command::new("yt-dlp");
+  cmd.arg("-j").arg(url.to_string());
+  println!("ytdlp::describe {:?}", &cmd);
+  let output = cmd.output();
   let output = output.await?;
 
   if !output.status.success() {
@@ -64,7 +67,7 @@ pub async fn describe(url: url::Url) -> Result<Video> {
     println!("stdout: {:?}\nstderr: {:?}",
              std::str::from_utf8(&output.stdout).unwrap(),
              std::str::from_utf8(&output.stderr).unwrap());
-    Err(Error::msg("Command failed"))
+    Err(Error::msg("Command describe failed"))
   } else { Ok(()) }?;
 
   // let _res_raw : serde_json::Value = serde_json::from_slice(&output.stdout)?;
@@ -81,6 +84,7 @@ pub async fn download(url: url::Url, filename: String, format_id: Option<String>
     cmd.arg("-f").arg(format_id);
   }
   cmd.arg(url.to_string());
+  println!("ytdlp::download {:?}", &cmd);
   let output = cmd.output().await?;
 
   if !output.status.success() {
@@ -88,7 +92,7 @@ pub async fn download(url: url::Url, filename: String, format_id: Option<String>
     println!("stdout: {:?}\nstderr: {:?}",
              std::str::from_utf8(&output.stdout).unwrap(),
              std::str::from_utf8(&output.stderr).unwrap());
-    Err(Error::msg("Command failed"))
+    Err(Error::msg("Command download failed"))
   } else { Ok(()) }?;
 
   // let result : Video = serde_json::from_slice(&output.stdout)?;
