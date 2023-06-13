@@ -41,21 +41,31 @@ fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Opt
   let Config {max_filesize, vcodec_exclude, ..} = conf.clone();
   println!("max_filesize={}", max_filesize);
   let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize);
-  if filsize < max_filesize && !vcodec_exclude.contains(&video.vcodec) && mode == Mode::Video {
+  let codec_not_excluded = match &video.vcodec {
+    Some(vcodec) => !vcodec_exclude.contains(vcodec),
+    None => true
+  };
+  if filsize < max_filesize && mode == Mode::Video && codec_not_excluded {
     return Ok((None, video.ext.clone()))
   }
   use ytdlp::Format;
   let formats : Vec<_> = video.formats.iter()
     .sorted_by_key(|x| x.get_filesize().unwrap_or(max_filesize))
-    .filter(|x @ Format {vcodec, acodec, ..} |
+    .filter(|x @ Format {vcodec, video_ext, acodec, audio_ext, ..} |
             match x.get_filesize() {
               None => false,
               Some(filesize) => {
                 // println!("DBG: {} {}", vcodec, filesize);
+                let vcodec = vcodec.clone();
+                let acodec = acodec.clone();
+                let video_ext = video_ext.clone();
+                let audio_ext = audio_ext.clone();
+                let video = vcodec.or(video_ext).unwrap_or_else(|| "none".to_string());
+                let audio = acodec.or(audio_ext).unwrap_or_else(|| "none".to_string());
                 filesize < max_filesize
-                  && (if mode == Mode::Video { vcodec != "none" } else {vcodec == "none" })
-                  && acodec != "none"
-                  && !vcodec_exclude.contains(&vcodec)
+                  && (if mode == Mode::Video { video != "none" } else {video == "none" })
+                  && audio != "none"
+                  && !vcodec_exclude.contains(&video)
               },
             })
     .rev()
@@ -63,8 +73,8 @@ fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Opt
   // println!("Formats = {:#?}", formats);
   match formats[..] {
     [] => Err(anyhow!("Sorry, file is too big: {}", filsize)),
-    [Format {format_id, ext, vcodec, acodec, ..}, ..] => {
-      println!("Chosen vcodec: {}, acodec: {}", vcodec, acodec);
+    [Format {format_id, ext, vcodec, acodec, video_ext, audio_ext, ..}, ..] => {
+      println!("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
       Ok((Some(format_id.clone()), ext.clone()))
     },
   }

@@ -9,8 +9,14 @@ pub struct Format {
   pub format_id: String,
   #[serde(default)]
   pub filesize_approx: Option<i64>,
-  pub vcodec: String,
-  pub acodec: String,
+  pub vcodec: Option<String>,
+  #[serde(default)]
+  pub acodec: Option<String>,
+  #[serde(default)]
+  pub video_ext: Option<String>,
+  #[serde(default)]
+  pub audio_ext: Option<String>,
+  #[serde(default)]
   pub ext: String,
   pub height: Option<i64>,
   pub width: Option<i64>,
@@ -36,8 +42,14 @@ pub struct Video {
   pub fps: f64,
   pub width: i64,
   pub height: i64,
-  pub vcodec: String,
-  pub acodec: String,
+  pub vcodec: Option<String>,
+  #[serde(default)]
+  pub acodec: Option<String>,
+  #[serde(default)]
+  pub video_ext: Option<String>,
+  #[serde(default)]
+  pub audio_ext: Option<String>,
+  #[serde(default)]
   pub vbr: f64,
   pub format: String,
   pub format_id: String,
