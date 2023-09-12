@@ -38,8 +38,8 @@ pub struct Video {
   pub title: String,
   pub filename: String,
   pub ext: String,
-  #[serde(default)]
-  pub fps: f64,
+  // #[serde(default)]
+  //pub fps: f64,
   pub width: i64,
   pub height: i64,
   pub vcodec: Option<String>,
@@ -49,8 +49,8 @@ pub struct Video {
   pub video_ext: Option<String>,
   #[serde(default)]
   pub audio_ext: Option<String>,
-  #[serde(default)]
-  pub vbr: f64,
+//  #[serde(default)]
+//  pub vbr: f64,
   pub format: String,
   pub format_id: String,
   pub formats: Vec<Format>,

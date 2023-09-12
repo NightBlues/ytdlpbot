@@ -37,16 +37,16 @@ impl State {
 }
 
 /// Return (Option<format_id>, ext)
-fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Option<String>, String)> {
+fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Option<String>, String, Option<String>, Option<String>)> {
   let Config {max_filesize, vcodec_exclude, ..} = conf.clone();
-  println!("max_filesize={}", max_filesize);
+  println!("max_filesize={}, vcodec={:?}", max_filesize, &video.vcodec);
   let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize);
   let codec_not_excluded = match &video.vcodec {
     Some(vcodec) => !vcodec_exclude.contains(vcodec),
     None => true
   };
   if filsize < max_filesize && mode == Mode::Video && codec_not_excluded {
-    return Ok((None, video.ext.clone()))
+    return Ok((None, video.ext.clone(), video.vcodec.clone(), video.acodec.clone()))
   }
   use ytdlp::Format;
   let formats : Vec<_> = video.formats.iter()
@@ -75,7 +75,7 @@ fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Opt
     [] => Err(anyhow!("Sorry, file is too big: {}", filsize)),
     [Format {format_id, ext, vcodec, acodec, video_ext, audio_ext, ..}, ..] => {
       println!("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
-      Ok((Some(format_id.clone()), ext.clone()))
+      Ok((Some(format_id.clone()), ext.clone(), vcodec.clone(), acodec.clone()))
     },
   }
 }
@@ -96,7 +96,7 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   // println!("{:#?}", video);
   println!("{}", video);
   let mode = state.get_mode(chat_id).await;
-  let (format_id, ext) =
+  let (format_id, ext, vcodec, acodec) =
     match choose_format(conf, mode.clone(), &video) {
       Ok(x) => x,
       Err(e) => {
@@ -106,7 +106,8 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
     };
   telegram::edit_message_text(
     &conf.telegram_token, chat_id, message_id,
-    format!("Downloading {} with format {}...", url, ext)).await?;
+    format!("Downloading {} with format {}, video codec {:?}, audio codec {:?}...", 
+            url, ext, vcodec.as_deref().unwrap_or_default(), acodec.as_deref().unwrap_or_default())).await?;
  
   // let filename = uuid::Uuid::new_v4().to_string();
   let filename = video.id;
