@@ -26,6 +26,11 @@ use serde::{Deserialize, Serialize};
 //   // ts: i64
 //   Ok(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ts, 0), Utc))
 // }
+//
+//
+fn unknown() -> String {
+    "UnknownPidor".to_string()
+} 
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Chat {
@@ -35,6 +40,7 @@ pub struct Chat {
   pub last_name: String,
   #[serde(rename="type")]
   pub typ: String,
+  #[serde(default="unknown")]
   pub username: String,
 }
 
@@ -47,6 +53,7 @@ pub struct From {
   pub language_code: String,
   #[serde(default)]
   pub last_name: String,
+  #[serde(default="unknown")]
   pub username: String,
 }
 
@@ -62,8 +69,14 @@ pub struct Message {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct MyChatMember {}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UpdateMessage {
+  #[serde(default)]
   pub message: Option<Message>,
+  #[serde(default)]
+  pub my_chat_member: Option<MyChatMember>,
   pub update_id: i64
 }
 
@@ -182,11 +195,16 @@ impl fmt::Display for SendMessageResponseInner {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SendMessageResponse {
   pub ok: bool,
-  pub result: SendMessageResponseInner,
+  #[serde(default)]
+  pub error_code: Option<i64>,
+  #[serde(default)]
+  pub description: String,
+  #[serde(default)]
+  pub result: Option<SendMessageResponseInner>,
 }
 
 impl fmt::Display for SendMessageResponse {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.result)
+    write!(f, "{:#?}", self.result)
   }
 }

@@ -44,6 +44,7 @@ pub async fn get_updates(
   };
   let res = request.send().await?;
   let data = res.bytes().await?;
+  // println!("called get_updates: parsing respnse: {:#?}", &data);
   let res1 = serde_json::from_slice::<serde_json::Value>(&data)?;
   // println!("GetUpdates: {:#?}", res1);
   let res = serde_json::from_slice::<messages::GetUpdates>(&data)
@@ -72,7 +73,10 @@ pub async fn send_message(
   let client = reqwest::Client::new();
   let res = client.post(url).json(&data).send().await?;
   // let res = res.json::<serde_json::Value>().await?;
-  let res = res.json::<messages::SendMessageResponse>().await?;
+  let data = res.bytes().await?;
+  println!("DBG: {:#?}", &data);
+  let res = serde_json::from_slice::<messages::SendMessageResponse>(&data)?;
+  // let res = res.json::<messages::SendMessageResponse>().await?;
   println!("{}", res);
   
   Ok(res)

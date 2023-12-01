@@ -85,7 +85,8 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   let response = telegram::send_message(
     &conf.telegram_token, chat_id,
     format!("Downloading {}...", url)).await?;
-  let message_id = response.result.message_id;
+  let result = response.result.ok_or(anyhow!(response.description))?;
+  let message_id = result.message_id;
   // telegram::send_message(conf.clone(), chat_id, text).await?
   // let url = "https://youtu.be/kseKKaa94vg".to_string();
   let video = ytdlp::describe(url.clone()).await;
