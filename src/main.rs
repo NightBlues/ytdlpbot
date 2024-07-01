@@ -28,6 +28,7 @@ async fn main() -> Result<()> {
   let state = commands::State::new();
   println!("Started...");
   let mut update_id : Option<i64> = None;
+  let mut warm_up = true;
   loop {
     let res =
       telegram::get_updates(&conf.telegram_token, update_id).await;
@@ -39,6 +40,12 @@ async fn main() -> Result<()> {
       },
       Err(e) => { println!("Error: {}", e); vec![] },
     };
+    // ignore everything before start
+    if warm_up {
+      println!("Warmup to updateId = {:?}", update_id);
+      warm_up = false;
+      continue
+    }
     commands::react_messages(&conf, &state, messages.clone()).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await
   }
