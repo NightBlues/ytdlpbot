@@ -40,7 +40,9 @@ impl State {
 fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Option<String>, String, Option<String>, Option<String>)> {
   let Config {max_filesize, vcodec_exclude, ..} = conf.clone();
   println!("max_filesize={}, vcodec={:?}", max_filesize, &video.vcodec);
-  let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize);
+  let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize - 1);
+  // fix if filesize missing
+  // let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize);
   let codec_not_excluded = match &video.vcodec {
     Some(vcodec) => !vcodec_exclude.contains(vcodec),
     None => true
