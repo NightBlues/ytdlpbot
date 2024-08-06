@@ -1,88 +1,12 @@
-use tokio::sync::RwLock;
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
-use lru::LruCache;
 use crate::telegram;
 use crate::ytdlp;
+use crate::user_state::{State, Mode, Quality, UserConfig};
+use crate::config::Config;
+use crate::format_chooser::{ChosenFormat, choose_format};
 
-#[derive(Clone)]
-pub struct Config {
-  pub max_filesize: i64,
-  pub vcodec_exclude: Vec<String>,
-  pub telegram_token: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Mode {
-  Video,
-  Audio,
-}
-
-pub struct State {
-  pub modes: RwLock<LruCache<i64, Mode>>,
-}
-
-impl State {
-  pub fn new() -> State {
-    let modes = RwLock::new(LruCache::new(std::num::NonZeroUsize::new(100).unwrap()));
-    State {modes}
-  }
-
-  pub async fn get_mode(self: &State, chat_id: i64) -> Mode {
-    let modes = self.modes.read().await;
-    let val = modes.peek(&chat_id).unwrap_or(&Mode::Video);
-
-    (*val).clone()
-  }
-}
-
-/// Return (Option<format_id>, ext)
-fn choose_format(conf: &Config, mode: Mode, video: &ytdlp::Video) -> Result<(Option<String>, String, Option<String>, Option<String>)> {
-  let Config {max_filesize, vcodec_exclude, ..} = conf.clone();
-  println!("max_filesize={}, vcodec={:?}", max_filesize, &video.vcodec);
-  let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize - 1);
-  // fix if filesize missing
-  // let filsize : i64 = video.filesize_approx.unwrap_or(max_filesize);
-  let codec_not_excluded = match &video.vcodec {
-    Some(vcodec) => !vcodec_exclude.contains(vcodec),
-    None => true
-  };
-  if filsize < max_filesize && mode == Mode::Video && codec_not_excluded {
-    return Ok((None, video.ext.clone(), video.vcodec.clone(), video.acodec.clone()))
-  }
-  use ytdlp::Format;
-  let formats : Vec<_> = video.formats.iter()
-    .sorted_by_key(|x| x.get_filesize().unwrap_or(max_filesize))
-    .filter(|x @ Format {vcodec, video_ext, acodec, audio_ext, ..} |
-            match x.get_filesize() {
-              None => false,
-              Some(filesize) => {
-                // println!("DBG: {} {}", vcodec, filesize);
-                let vcodec = vcodec.clone();
-                let acodec = acodec.clone();
-                let video_ext = video_ext.clone();
-                let audio_ext = audio_ext.clone();
-                let video = vcodec.or(video_ext).unwrap_or_else(|| "none".to_string());
-                let audio = acodec.or(audio_ext).unwrap_or_else(|| "none".to_string());
-                filesize < max_filesize
-                  && (if mode == Mode::Video { video != "none" } else {video == "none" })
-                  && audio != "none"
-                  && !vcodec_exclude.contains(&video)
-              },
-            })
-    .rev()
-    .collect();
-  // println!("Formats = {:#?}", formats);
-  match formats[..] {
-    [] => Err(anyhow!("Sorry, file is too big: {}", filsize)),
-    [Format {format_id, ext, vcodec, acodec, video_ext, audio_ext, ..}, ..] => {
-      println!("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
-      Ok((Some(format_id.clone()), ext.clone(), vcodec.clone(), acodec.clone()))
-    },
-  }
-}
-
-
+// Handle download command
 async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url) -> Result<()> {
   let response = telegram::send_message(
     &conf.telegram_token, chat_id,
@@ -98,9 +22,9 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   let video = video?;
   // println!("{:#?}", video);
   println!("{}", video);
-  let mode = state.get_mode(chat_id).await;
-  let (format_id, ext, vcodec, acodec) =
-    match choose_format(conf, mode.clone(), &video) {
+  let userconf = state.get_userconfig(chat_id).await;
+  let ChosenFormat {format_id, ext, vcodec, acodec} =
+    match choose_format(conf, &userconf, &video) {
       Ok(x) => x,
       Err(e) => {
         telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
@@ -111,17 +35,27 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
     &conf.telegram_token, chat_id, message_id,
     format!("Downloading {} with format {}, video codec {:?}, audio codec {:?}...", 
             url, ext, vcodec.as_deref().unwrap_or_default(), acodec.as_deref().unwrap_or_default())).await?;
- 
+  
   // let filename = uuid::Uuid::new_v4().to_string();
   let filename = video.id;
   let full_filename = format!("{}.{}", &filename, ext.clone());
   let filename_template = format!("{}.%(ext)s", &filename);
-  ytdlp::download(url.clone(), filename_template, format_id).await?;
-  match mode {
+  let download_res =
+    ytdlp::download(url.clone(), filename_template, format_id).await;
+  if let Err(e) = &download_res {
+    telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
+    return Err(anyhow!("download error"))
+  };
+  let upload_res = match userconf.mode {
     Mode::Video =>
-      telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
+      telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await,
     Mode::Audio =>
-      telegram::send_audio(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
+      telegram::send_audio(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await,
+  };
+  if let Err(e) = &upload_res {
+    telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
+    std::fs::remove_file(full_filename)?;
+    return Err(anyhow!("download error"))
   };
   std::fs::remove_file(full_filename)?;
   telegram::delete_message(
@@ -129,6 +63,8 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   Ok(())
 }
 
+
+// Dispatch commands
 pub async fn react(conf: &Config, state: &State, chat_id: i64, text: String) -> Result<()> {
   match url::Url::parse(&text) {
     Ok(url) => {
@@ -138,38 +74,85 @@ pub async fn react(conf: &Config, state: &State, chat_id: i64, text: String) -> 
         Err(e) => println!("Error: {:?}", e),
       }
           
-      return Ok(())
+      Ok(())
     },
-    Err(_) =>
-      if text.starts_with("/st") {
-        let mode = state.get_mode(chat_id).await;
-        telegram::send_message(
-          &conf.telegram_token, chat_id,
-          format!("Current mode is: {:?}", mode)).await?;
-        return Ok(())
-      } else if text.starts_with("/audio") {
-        let mut modes = state.modes.write().await;
-        modes.put(chat_id, Mode::Audio);
-        telegram::send_message(
-          &conf.telegram_token, chat_id,
-          "Switched to audio download".to_string()).await?;
-        return Ok(())
-      } else if text.starts_with("/video") {
-        let mut modes = state.modes.write().await;
-        modes.put(chat_id, Mode::Video);
-        telegram::send_message(
-          &conf.telegram_token, chat_id,
-          "Switched to video download".to_string()).await?;
-        return Ok(())
+    Err(_) => {
+      let words : Vec<_> = text.split_whitespace()
+        // .map(|x| x.to_string())
+        .collect();
+      match words.as_slice() {
+        ["/st", ..] => {
+          let userconf = state.get_userconfig(chat_id).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            format!("Current user config is:\n{}", userconf)).await?;
+          Ok(())
+        },
+        ["/audio", ..] => {
+          state.set_mode(chat_id, Mode::Audio).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Switched to audio download".to_string()).await?;
+          Ok(())
+        },
+        ["/video", ..] => {
+          state.set_mode(chat_id, Mode::Video).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Switched to video download".to_string()).await?;
+          Ok(())
+        },
+        ["/video_quality_high", ..] => {
+          state.set_video_quality(chat_id, Quality::High).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Set video quality to High".to_string()).await?;
+          Ok(())
+        },
+        ["/video_quality_low", ..] => {
+          state.set_video_quality(chat_id, Quality::Low).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Set video quality to Low".to_string()).await?;
+          Ok(())
+        },
+        ["/audio_quality_high", ..] => {
+          state.set_audio_quality(chat_id, Quality::High).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Set audio quality to High".to_string()).await?;
+          Ok(())
+        },
+        ["/audio_quality_low", ..] => {
+          state.set_audio_quality(chat_id, Quality::Low).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Set audio quality to Low".to_string()).await?;
+          Ok(())
+        },
+        ["/vcodec_exclude", vcodecs @ ..] => {
+          let vcodecs = vcodecs.iter().map(|x| x.to_string()).collect();
+          let UserConfig {vcodec_exclude, .. } =
+            state.set_vcodec_exclude(chat_id, vcodecs).await;
+          let msg = format!("Set video codecs excludes to {}",
+                            vcodec_exclude.join(" "));
+          telegram::send_message(
+            &conf.telegram_token, chat_id, msg).await?;
+          Ok(())
+        },
+        _ =>  {
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Unknown command".to_string()).await?;
+          Ok(())
+        }
       }
+    }
   }
-  telegram::send_message(
-    &conf.telegram_token, chat_id,
-    "Unknown command".to_string()).await?;
-
-  Ok(())
 }
 
+
+// Throttle and call dispatcher
 pub async fn react_messages(conf: &Config, state: &State, messages: Vec<(i64, String, String)>) -> Result<()> {
     let messages = messages.iter()
       .sorted_by_key(|x| x.1.clone())

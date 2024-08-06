@@ -1,10 +1,11 @@
+use std::fmt;
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, Error, Context, anyhow};
 use tokio::process::Command;
 
 
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Format {
   pub format_id: String,
   #[serde(default)]
@@ -22,14 +23,45 @@ pub struct Format {
   pub width: Option<i64>,
   #[serde(default)]
   pub filesize: Option<i64>,
+  pub tbr: Option<f64>,
+  pub abr: Option<f64>,
+  pub asr: Option<f64>,
+  pub vbr: Option<f64>,
+  pub fps: Option<f64>,
 }
 
 impl Format {
   pub fn get_filesize(&self) -> Option<i64> {
     self.filesize.or(self.filesize_approx)
   }
+
+  pub fn get_video_audio(&self) -> (String, String) {
+    let Format {vcodec, acodec,
+                audio_ext, video_ext, ..} = (*self).clone();
+    let video = vcodec.or(video_ext).unwrap_or_else(|| "none".to_string());
+    let audio = acodec.or(audio_ext).unwrap_or_else(|| "none".to_string());
+    (video, audio)
+  }
 }
 
+impl fmt::Display for Format {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let Format {format_id, tbr, ..} = (*self).clone();
+    let (video, audio) = self.get_video_audio();
+    let filesize = self.get_filesize();
+
+    write!(f, "{{{}: {} {} {:?} {:?}}}", format_id, video, audio, tbr, filesize)
+  }
+}
+
+pub struct FormatVec(pub Vec<Format>);
+
+impl fmt::Display for FormatVec {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let format_strs: Vec<_> = self.0.clone().into_iter().map(|x| format!("{}", x)).collect();
+    write!(f, "{}", format_strs.join(", "))
+  }
+}
 
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -57,6 +89,11 @@ pub struct Video {
   #[serde(default, alias="filesize")]
   pub filesize_approx: Option<i64>,
   pub duration: i64,
+  pub tbr: Option<f64>,
+  pub abr: Option<f64>,
+  pub asr: Option<f64>,
+  pub vbr: Option<f64>,
+  pub fps: Option<i64>,
 }
 
 impl std::fmt::Display for Video {

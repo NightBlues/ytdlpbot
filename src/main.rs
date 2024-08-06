@@ -1,8 +1,11 @@
 use anyhow::Result;
 
+mod config;
 mod telegram_messages;
 mod telegram;
 mod ytdlp;
+mod user_state;
+mod format_chooser;
 mod commands;
 
 #[tokio::main]
@@ -10,22 +13,15 @@ async fn main() -> Result<()> {
 
   let telegram_token = std::env::var("TELEGRAM_TOKEN")
     .expect("Specify TELEGRAM_TOKEN env var.");
-  let vcodec_exclude = std::env::var("VCODEC_EXCLUDE")
-    .unwrap_or("".to_string());
-    // .expect("Specify VCODEC_EXCLUDE env var.");
-  let vcodec_exclude : Vec<String> = vcodec_exclude.split(",")
-    .into_iter()
-    .map(|x| x.to_string()).collect();
   let max_filesize : i64 = std::env::var("MAX_FILESIZE")
     .map_err(|x| x.to_string())
     .and_then(|x| x.parse::<i64>().map_err(|x| x.to_string()))
     .unwrap_or(50 * 1024 * 1024);
-  let conf = commands::Config {
+  let conf = config::Config {
     max_filesize,
-    vcodec_exclude,
     telegram_token,
   };
-  let state = commands::State::new();
+  let state = user_state::State::new();
   println!("Started...");
   let mut update_id : Option<i64> = None;
   let mut warm_up = true;
