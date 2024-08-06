@@ -107,12 +107,12 @@ pub struct Video {
   pub formats: Vec<Format>,
   #[serde(default, alias="filesize")]
   pub filesize_approx: Option<i64>,
-  pub duration: i64,
+  pub duration: f64,
   pub tbr: Option<f64>,
   pub abr: Option<f64>,
   pub asr: Option<f64>,
   pub vbr: Option<f64>,
-  pub fps: Option<i64>,
+  pub fps: Option<f64>,
 }
 
 impl std::fmt::Display for Video {
