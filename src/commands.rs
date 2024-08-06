@@ -39,9 +39,9 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
   // let filename = uuid::Uuid::new_v4().to_string();
   let filename = video.id;
   let full_filename = format!("{}.{}", &filename, ext.clone());
-  let filename_template = format!("{}.%(ext)s", &filename);
+  // let filename_template = format!("{}.%(ext)s", &filename);
   let download_res =
-    ytdlp::download(url.clone(), filename_template, format_id).await;
+    ytdlp::download(url.clone(), full_filename.clone(), format_id).await;
   if let Err(e) = &download_res {
     telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
     return Err(anyhow!("download error"))
