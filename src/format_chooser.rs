@@ -64,7 +64,7 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
   let Config {max_filesize, ..} = conf.clone();
   let UserConfig {vquality, vcodec_exclude, ..} = userconf.clone();
   use ytdlp::Format;
-  let audio_format = choose_format_audio(conf, userconf, video)?;
+  let audio_format = choose_format_audio(conf, userconf, video).ok();
   let mut formats : Vec<_> = video.formats.iter()
     .filter(|x| x.get_filesize()
             .map_or(false, |filesize| filesize < max_filesize))
@@ -79,8 +79,8 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
         (_, _, true) => None,
         // if video only - transfer it to video+audio
         (_, "none", false) => {
-          let newformat = format.add_audio(&audio_format);
-          Some(newformat)
+          audio_format.as_ref().map(
+            |audio_format| format.add_audio(audio_format))
         },
         // if video + audio and not exluded
         (_, _, false) => Some(format.clone()),
