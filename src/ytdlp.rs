@@ -42,6 +42,25 @@ impl Format {
     let audio = acodec.or(audio_ext).unwrap_or_else(|| "none".to_string());
     (video, audio)
   }
+
+  pub fn add_audio(&self, audio: &Format) -> Self {
+    let filesize_approx =
+      self.filesize_approx
+      .and_then(|fs| audio.filesize_approx.map(|fs_a| fs + fs_a))
+      .or(self.filesize_approx);
+    let filesize =
+      self.filesize
+      .and_then(|fs| audio.filesize.map(|fs_a| fs + fs_a))
+      .or(self.filesize);
+    Format {
+      format_id: format!("{}+{}", self.format_id, audio.format_id),
+      acodec: audio.acodec.clone(),
+      audio_ext: audio.audio_ext.clone(),
+      filesize_approx,
+      filesize,
+      abr: audio.abr,
+      .. self.clone()}
+  }
 }
 
 impl fmt::Display for Format {
@@ -59,7 +78,7 @@ pub struct FormatVec(pub Vec<Format>);
 impl fmt::Display for FormatVec {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let format_strs: Vec<_> = self.0.clone().into_iter().map(|x| format!("{}", x)).collect();
-    write!(f, "{}", format_strs.join(", "))
+    write!(f, "{}", format_strs.join("\n"))
   }
 }
 
