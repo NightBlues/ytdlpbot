@@ -105,7 +105,9 @@ pub struct Video {
   pub format: String,
   pub format_id: String,
   pub formats: Vec<Format>,
-  #[serde(default, alias="filesize")]
+  #[serde(default)]
+  pub filesize: Option<i64>,
+  #[serde(default)]
   pub filesize_approx: Option<i64>,
   pub duration: f64,
   pub tbr: Option<f64>,
@@ -115,10 +117,16 @@ pub struct Video {
   pub fps: Option<f64>,
 }
 
+impl Video {
+  pub fn get_filesize(&self) -> Option<i64> {
+    self.filesize.or(self.filesize_approx)
+  }
+}
+
 impl std::fmt::Display for Video {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "Video: {}.{} {} {:?}bytes {}secs",
-           self.id, self.ext, self.title, self.filesize_approx, self.duration)
+           self.id, self.ext, self.title, self.get_filesize(), self.duration)
   }
 }
 
@@ -139,8 +147,12 @@ pub async fn describe(url: url::Url) -> Result<Video> {
   } else { Ok(()) }?;
 
   // let _res_raw : serde_json::Value = serde_json::from_slice(&output.stdout)?;
-  let result = serde_json::from_slice::<Video>(&output.stdout)
-    .context("Could not parse ytdlp::describe response")?;
+  let result = serde_json::from_slice::<Video>(&output.stdout);
+    // .context("Could not parse ytdlp::describe response");
+  if result.is_err() {
+    log::error!("stdout: {:?}", std::str::from_utf8(&output.stdout).unwrap());
+  }
+  let result = result?;
   
   Ok(result)
 }
