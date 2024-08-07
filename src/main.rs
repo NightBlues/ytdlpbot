@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 mod config;
+mod utils;
 mod telegram_messages;
 mod telegram;
 mod ytdlp;

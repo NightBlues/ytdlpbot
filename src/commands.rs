@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use crate::telegram;
+use crate::utils;
 use telegram::IncomeMessage;
 use crate::ytdlp;
 use crate::user_state::{State, Mode, Quality, UserConfig};
@@ -23,24 +24,16 @@ async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url
   let filename = format!("{}_{}", chat_id, &video.id);
   let expected_filename = format!("{}/{}", conf.download_dir, filename);
   ytdlp::download(url.clone(), expected_filename, format_id).await?;
-  let mut full_filename = None;
-  let files = std::fs::read_dir(&conf.download_dir)?;
-  for file in files {
-    let file = file?;
-    let cur_filename = file.file_name().into_string()
-      .map_err(|e| anyhow!("filename not valid: {:?}", e))?;
-    if cur_filename.starts_with(&filename) {
-      full_filename = file.path().into_os_string().into_string().ok();
-    }
-  }
-  let full_filename = full_filename.ok_or(anyhow!("Could not find downloaded file"))?;
+  let full_filename = utils::find_file_pat(&conf.download_dir, &filename)?;
   match userconf.mode {
     Mode::Video =>
       telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
     Mode::Audio =>
       telegram::send_audio(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
   };
-  std::fs::remove_file(full_filename)?;
+  for file in utils::find_files_pat(&conf.download_dir, &filename)? {
+    std::fs::remove_file(file)?;
+  }
   telegram::delete_message(
     &conf.telegram_token, chat_id, message_id).await?;
   Ok(())
