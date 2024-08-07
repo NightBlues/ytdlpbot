@@ -110,6 +110,13 @@ pub async fn react(conf: &Config, state: &State, msg: &IncomeMessage) -> Result<
             "Set video quality to Low".to_string()).await?;
           Ok(())
         },
+        ["/video_quality_awful", ..] => {
+          state.set_video_quality(chat_id, Quality::Awful).await;
+          telegram::send_message(
+            &conf.telegram_token, chat_id,
+            "Set video quality to Awful".to_string()).await?;
+          Ok(())
+        },
         ["/audio_quality_high", ..] => {
           state.set_audio_quality(chat_id, Quality::High).await;
           telegram::send_message(

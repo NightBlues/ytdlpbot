@@ -13,6 +13,7 @@ pub enum Mode {
 pub enum Quality {
   Low,
   High,
+  Awful,
 }
 
 

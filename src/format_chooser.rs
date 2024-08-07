@@ -44,11 +44,12 @@ fn choose_format_audio(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
     })
     .rev()
     .collect();
-  if aquality == Quality::Low {
-    formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| x as i64));
-  } else {
-    formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64));
-  }
+  match aquality {
+    Quality::High =>
+      formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64)),
+    _ =>
+      formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| x as i64)),
+  };
   log::debug!("DBG: Filtered audio formats: {}", ytdlp::FormatVec(formats.clone()));
   if formats.is_empty() {
     Err(anyhow!("Sorry, file is too big"))
@@ -87,18 +88,20 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
       }
     })
     .filter(|format| {
-      // exclude too shitty resolutions
-      format.height.unwrap_or(0) >= 360
+      // exclude too shitty resolutions if not Awful
+      vquality == Quality::Awful || format.height.unwrap_or(0) >= 360
     })
     .sorted_by_key(|x| x.get_filesize().unwrap_or(max_filesize))
     .rev()
     .collect();
-  if vquality == Quality::Low {
-    
-    formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| x as i64));
-  } else {
-    formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64));
-  }
+  match vquality {
+    Quality::High => {
+      formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64));
+    },
+    _ => {
+      formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| x as i64));
+    },
+  };
   log::debug!("DBG: Filtered video formats: {}", ytdlp::FormatVec(formats.clone()));
   if formats.is_empty() {
     Err(anyhow!("Sorry, file is too big or you have exluded all formats"))
