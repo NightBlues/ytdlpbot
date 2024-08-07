@@ -20,7 +20,11 @@ async fn main() -> Result<()> {
   let conf = config::Config {
     max_filesize,
     telegram_token,
+    download_dir: "dl".to_string(),
   };
+  if !std::fs::metadata(&conf.download_dir).unwrap().is_dir() {
+    panic!("Download dir doesn not exist")
+  }
   let state = user_state::State::new();
   println!("Started...");
   let mut update_id : Option<i64> = None;

@@ -7,59 +7,56 @@ use crate::config::Config;
 use crate::format_chooser::{ChosenFormat, choose_format};
 
 // Handle download command
-async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url) -> Result<()> {
-  let response = telegram::send_message(
-    &conf.telegram_token, chat_id,
-    format!("Downloading {}...", url)).await?;
-  let result = response.result.ok_or(anyhow!(response.description))?;
-  let message_id = result.message_id;
-  // telegram::send_message(conf.clone(), chat_id, text).await?
-  // let url = "https://youtu.be/kseKKaa94vg".to_string();
-  let video = ytdlp::describe(url.clone()).await;
-  if let Err(e) = &video {
-     telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
-  };
-  let video = video?;
-  // println!("{:#?}", video);
-  println!("{}", video);
+async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url::Url, message_id: i64) -> Result<()> {
+  let video = ytdlp::describe(url.clone()).await?;
+  // println!("{}", video);
   let userconf = state.get_userconfig(chat_id).await;
   let ChosenFormat {format_id, ext, vcodec, acodec} =
-    match choose_format(conf, &userconf, &video) {
-      Ok(x) => x,
-      Err(e) => {
-        telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
-        return Ok(())
-      }
-    };
+    choose_format(conf, &userconf, &video)?;
   telegram::edit_message_text(
     &conf.telegram_token, chat_id, message_id,
     format!("Downloading {} with format {}, video codec {:?}, audio codec {:?}...", 
             url, ext, vcodec.as_deref().unwrap_or_default(), acodec.as_deref().unwrap_or_default())).await?;
   
   // let filename = uuid::Uuid::new_v4().to_string();
-  let filename = video.id;
-  let full_filename = format!("{}.{}", &filename, ext.clone());
-  // let filename_template = format!("{}.%(ext)s", &filename);
-  let download_res =
-    ytdlp::download(url.clone(), full_filename.clone(), format_id).await;
-  if let Err(e) = &download_res {
-    telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
-    return Err(anyhow!("download error"))
-  };
-  let upload_res = match userconf.mode {
+  let filename = format!("{}_{}", chat_id, &video.id);
+  let expected_filename = format!("{}/{}", conf.download_dir, filename);
+  ytdlp::download(url.clone(), expected_filename, format_id).await?;
+  let mut full_filename = None;
+  let files = std::fs::read_dir(&conf.download_dir)?;
+  for file in files {
+    let file = file?;
+    let cur_filename = file.file_name().into_string()
+      .map_err(|e| anyhow!("filename not valid: {:?}", e))?;
+    if cur_filename.starts_with(&filename) {
+      full_filename = file.path().into_os_string().into_string().ok();
+    }
+  }
+  let full_filename = full_filename.ok_or(anyhow!("Could not find downloaded file"))?;
+  match userconf.mode {
     Mode::Video =>
-      telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await,
+      telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
     Mode::Audio =>
-      telegram::send_audio(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await,
-  };
-  if let Err(e) = &upload_res {
-    telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
-    std::fs::remove_file(full_filename)?;
-    return Err(anyhow!("download error"))
+      telegram::send_audio(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
   };
   std::fs::remove_file(full_filename)?;
   telegram::delete_message(
     &conf.telegram_token, chat_id, message_id).await?;
+  Ok(())
+}
+
+/// Download URL, reporting error back to chat
+async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url) -> Result<()> {
+  let response = telegram::send_message(
+    &conf.telegram_token, chat_id,
+    format!("Downloading {}...", url)).await?;
+  let result = response.result.ok_or(anyhow!(response.description))?;
+  let message_id = result.message_id;
+  let res = download_url_inner(conf, state, chat_id, url, message_id).await;
+  if let Err(e) = &res {
+    telegram::edit_message_text(&conf.telegram_token, chat_id, message_id, e.to_string()).await?;
+  };
+  
   Ok(())
 }
 
