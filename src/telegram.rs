@@ -30,11 +30,24 @@ fn url_send_audio(token: &String) -> String /* dyn reqwest::IntoUrl */ {
 
 use crate::telegram_messages as messages;
 
+#[derive(Debug, Clone)]
+pub struct IncomeMessage {
+  pub chat_id: i64,
+  pub username: String,
+  pub text: String,
+}
 
-/// Return (Option<update_id>, vec![(chat_id, username, text)])
+impl std::fmt::Display for IncomeMessage {
+  fn fmt(&self, f:&mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}({}): {}", self.username, self.chat_id,
+           self.text.replace("\n", "<NL>"))
+  }
+}
+
+/// Return (Option<update_id>, vec![IncomeMessage])
 pub async fn get_updates(
   token: &String, offset: Option<i64>)
-  -> Result<(Option<i64>, Vec<(i64, String, String)>)> {
+  -> Result<(Option<i64>, Vec<IncomeMessage>)> {
   let url = url_get_updates(token);
   // json::<serde_json::Value>
   let request = reqwest::Client::new().get(url);
@@ -44,9 +57,9 @@ pub async fn get_updates(
   };
   let res = request.send().await?;
   let data = res.bytes().await?;
-  // println!("called get_updates: parsing respnse: {:#?}", &data);
+  // log::debug!("called get_updates: parsing respnse: {:#?}", &data);
   let res1 = serde_json::from_slice::<serde_json::Value>(&data)?;
-  // println!("GetUpdates: {:#?}", res1);
+  // log::debug!("GetUpdates: {:#?}", res1);
   let res = serde_json::from_slice::<messages::GetUpdates>(&data)
     .context(format!("Could not parse GetUpdates request: {:#?}", res1))?;
   // use messages;
@@ -56,28 +69,29 @@ pub async fn get_updates(
   let t2 = t2.iter().filter_map(
     |Message {text, chat: Chat {id, username, ..}, ..}|
     if let Some(text) = text {
-      Some((*id, username.clone(), text.clone()))
+      Some(IncomeMessage {chat_id:*id, username:username.clone(), text: text.clone()})
     } else {
       None
     })
     .collect::<Vec<_>>();
-  // println!("{:#?}", t2);
+  // log::debug!("{:#?}", t2);
   Ok((update_id, t2))
 }
 
 pub async fn send_message(
   token: &String, chat_id: i64, text: String)
   -> Result<messages::SendMessageResponse> {
+  log::info!("Send to {}: {}", chat_id, &text);
   let url = url_send_message(token);
   let data = messages::SendMessage {chat_id, text, disable_notification: false, disable_web_page_preview: true};
   let client = reqwest::Client::new();
   let res = client.post(url).json(&data).send().await?;
   // let res = res.json::<serde_json::Value>().await?;
   let data = res.bytes().await?;
-  println!("DBG: {:#?}", &data);
+  log::debug!("DBG: {:#?}", &data);
   let res = serde_json::from_slice::<messages::SendMessageResponse>(&data)?;
   // let res = res.json::<messages::SendMessageResponse>().await?;
-  println!("{}", res);
+  log::debug!("{}", res);
   
   Ok(res)
 }
@@ -91,7 +105,7 @@ pub async fn delete_message(
   let res = client.post(url).json(&data).send().await?;
   let res = res.json::<serde_json::Value>().await?;
   // let res = res.json::<messages::SendMessageResponse>().await?;
-  println!("delete response for {}: {}", message_id, res);
+  log::debug!("delete response for {}: {}", message_id, res);
   
   Ok(())
 }
@@ -99,13 +113,14 @@ pub async fn delete_message(
 pub async fn edit_message_text(
   token: &String, chat_id: i64, message_id: i64, text: String)
   -> Result<messages::SendMessageResponse> {
+  // log::info!("Edit for {}: {}", chat_id, &text);
   let url = url_edit_message_text(token);
   let data = messages::EditMessageText {chat_id, message_id, text, disable_web_page_preview: true};
   let client = reqwest::Client::new();
   let res = client.post(url).json(&data).send().await?;
   // let res = res.json::<serde_json::Value>().await?;
   let res = res.json::<messages::SendMessageResponse>().await?;
-  println!("{}", res);
+  log::debug!("{}", res);
   
   Ok(res)
 }
@@ -113,6 +128,7 @@ pub async fn edit_message_text(
 pub async fn send_video(
   token: &String, chat_id: i64, caption: String, video: String)
   -> Result<()> {
+  log::info!("Send video to {}: {}", chat_id, video);
   let url = url_send_video(token);
   let request = reqwest::Client::new().post(url).query(&[
     ("chat_id", chat_id.to_string()),
@@ -131,7 +147,7 @@ pub async fn send_video(
   // let res = res.json::<serde_json::Value>().await?;
   let res = res.json::<messages::SendMessageResponse>().await
     .context("Could not parse sendVideo response")?;
-  println!("{}", res);
+  log::debug!("{}", res);
   
   Ok(())
 }
@@ -139,6 +155,7 @@ pub async fn send_video(
 pub async fn send_audio(
   token: &String, chat_id: i64, caption: String, audio: String)
   -> Result<()> {
+  log::info!("Send audio to {}: {}", chat_id, audio);
   let url = url_send_audio(token);
   let request = reqwest::Client::new().post(url).query(&[
     ("chat_id", chat_id.to_string()),
@@ -157,7 +174,7 @@ pub async fn send_audio(
   // let res = res.json::<serde_json::Value>().await?;
   let res = res.json::<messages::SendMessageResponse>().await
     .context("Could not parse sendAudio response")?;
-  println!("{}", res);
+  log::debug!("{}", res);
   
   Ok(())
 }

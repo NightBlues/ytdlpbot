@@ -26,7 +26,13 @@ async fn main() -> Result<()> {
     panic!("Download dir doesn not exist")
   }
   let state = user_state::State::new();
-  println!("Started...");
+  // pretty_env_logger::init_timed();
+  pretty_env_logger::formatted_timed_builder()
+    .write_style(pretty_env_logger::env_logger::WriteStyle::Auto)
+    .filter(Some("ytdlpbot"), log::LevelFilter::Debug)
+    .filter(Some("reqwest"), log::LevelFilter::Info)
+    .init();
+  log::info!("Started...");
   let mut update_id : Option<i64> = None;
   let mut warm_up = true;
   loop {
@@ -34,15 +40,15 @@ async fn main() -> Result<()> {
       telegram::get_updates(&conf.telegram_token, update_id).await;
     let messages = match res {
       Ok((update_id_, messages)) => {
-        // println!("update_id={:?}", update_id_);
+        // log::debug!("update_id={:?}", update_id_);
         update_id = update_id_.map(|x| x + 1i64);
         messages
       },
-      Err(e) => { println!("Error: {}", e); vec![] },
+      Err(e) => { log::error!("Error: {}", e); vec![] },
     };
     // ignore everything before start
     if warm_up {
-      println!("Warmup to updateId = {:?}", update_id);
+      log::info!("Warmup to updateId = {:?}", update_id);
       warm_up = false;
       continue
     }

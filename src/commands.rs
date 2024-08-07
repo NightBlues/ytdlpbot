@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use crate::telegram;
+use telegram::IncomeMessage;
 use crate::ytdlp;
 use crate::user_state::{State, Mode, Quality, UserConfig};
 use crate::config::Config;
@@ -9,7 +10,7 @@ use crate::format_chooser::{ChosenFormat, choose_format};
 // Handle download command
 async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url::Url, message_id: i64) -> Result<()> {
   let video = ytdlp::describe(url.clone()).await?;
-  // println!("{}", video);
+  // log::debug!("{}", video);
   let userconf = state.get_userconfig(chat_id).await;
   let ChosenFormat {format_id, ext, vcodec, acodec} =
     choose_format(conf, &userconf, &video)?;
@@ -46,7 +47,8 @@ async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url
 }
 
 /// Download URL, reporting error back to chat
-async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url) -> Result<()> {
+async fn download_url(conf: &Config, state: &State, msg: &IncomeMessage, url: url::Url) -> Result<()> {
+  let &IncomeMessage {chat_id, ..} = msg;
   let response = telegram::send_message(
     &conf.telegram_token, chat_id,
     format!("Downloading {}...", url)).await?;
@@ -62,20 +64,22 @@ async fn download_url(conf: &Config, state: &State, chat_id: i64, url: url::Url)
 
 
 // Dispatch commands
-pub async fn react(conf: &Config, state: &State, chat_id: i64, text: String) -> Result<()> {
-  match url::Url::parse(&text) {
+pub async fn react(conf: &Config, state: &State, msg: &IncomeMessage) -> Result<()> {
+  log::info!("command {}", msg);
+  match url::Url::parse(&msg.text) {
     Ok(url) => {
-      let res = download_url(conf, state, chat_id, url).await;
+      let res = download_url(conf, state, msg, url).await;
       match res {
         Ok(()) => (),
-        Err(e) => println!("Error: {:?}", e),
+        Err(e) => log::error!("Error: {:?}", e),
       }
           
       Ok(())
     },
     Err(_) => {
-      let words : Vec<_> = text.split_whitespace()
-        // .map(|x| x.to_string())
+      let &IncomeMessage {chat_id, ..} = msg;
+      let words : Vec<_> = msg.text.split_whitespace()
+      // .map(|x| x.to_string())
         .collect();
       match words.as_slice() {
         ["/st", ..] => {
@@ -150,25 +154,24 @@ pub async fn react(conf: &Config, state: &State, chat_id: i64, text: String) -> 
 
 
 // Throttle and call dispatcher
-pub async fn react_messages(conf: &Config, state: &State, messages: Vec<(i64, String, String)>) -> Result<()> {
-    let messages = messages.iter()
-      .sorted_by_key(|x| x.1.clone())
-      .group_by(|(_, x, _)| x);
-    for (username, group) in &messages {
-      // if group.collect().
-      let group = group.collect_vec();
-      match group[..] {
-        [] => continue,
-        [(chat_id, _, text)] =>
-          react(conf, state, *chat_id, text.clone()).await?,
-        [(chat_id, _, _), ..] => {
-          println!("User {} Too many requests", username);
-          telegram::send_message(
-            &conf.telegram_token, *chat_id,
-            "Too many requests".to_string()).await?;
-        }
+pub async fn react_messages(conf: &Config, state: &State, messages: Vec<IncomeMessage>) -> Result<()> {
+  let messages = messages.iter()
+    .sorted_by_key(|x| &x.username)
+    .group_by(|x| &x.username);
+  for (username, group) in &messages {
+    // if group.collect().
+    let group = group.collect_vec();
+    match group[..] {
+      [] => continue,
+      [msg] => react(conf, state, msg).await?,
+      [IncomeMessage {chat_id, ..}, ..] => {
+        log::warn!("User {} Too many requests", username);
+        telegram::send_message(
+          &conf.telegram_token, *chat_id,
+          "Too many requests".to_string()).await?;
       }
     }
+  }
 
-    Ok(())
+  Ok(())
 }

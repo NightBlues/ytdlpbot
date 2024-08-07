@@ -26,7 +26,7 @@ impl From<ytdlp::Format> for ChosenFormat {
 fn choose_format_audio(conf: &Config, userconf: &UserConfig, video: &ytdlp::Video) -> Result<ytdlp::Format> {
   let Config {max_filesize, ..} = conf.clone();
   let UserConfig {aquality, ..} = userconf.clone();
-  // println!("max_filesize={}, vcodec={:?}", max_filesize, &video.vcodec);
+  // log::info!("max_filesize={}, vcodec={:?}", max_filesize, &video.vcodec);
   use ytdlp::Format;
   let mut formats : Vec<ytdlp::Format> = video.formats.clone()
     .into_iter()
@@ -35,7 +35,7 @@ fn choose_format_audio(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
             .map_or(false, |filesize| filesize < max_filesize))
     .filter(|format| {
       let (video, audio) = format.get_video_audio();
-      // println!("DBG: {:?} {}", video.clone(), audio.clone());
+      // log::debug!("DBG: {:?} {}", video.clone(), audio.clone());
       video == "none" && audio != "none"
     })
     .filter(|format| {
@@ -49,12 +49,12 @@ fn choose_format_audio(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
   } else {
     formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64));
   }
-  println!("DBG: Filtered audio formats: {}", ytdlp::FormatVec(formats.clone()));
+  log::debug!("DBG: Filtered audio formats: {}", ytdlp::FormatVec(formats.clone()));
   if formats.is_empty() {
     Err(anyhow!("Sorry, file is too big"))
   } else {
     // let Format {vcodec, acodec, video_ext, audio_ext, ..} = formats[0];
-    // println!("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
+    // log::info("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
     Ok(formats[0].clone())
   }
 }
@@ -70,7 +70,7 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
             .map_or(false, |filesize| filesize < max_filesize))
     .filter_map(|format| {
       let (video, audio) = format.get_video_audio();
-      // println!("DBG: {:?} {}", video.clone(), audio.clone());
+      // log::debug!("DBG: {:?} {}", video.clone(), audio.clone());
       let excluded = vcodec_exclude.iter()
         .any(|c| video.starts_with(c));
       match &(&*video, &*audio, excluded) {
@@ -99,19 +99,19 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
   } else {
     formats.sort_by_key(|Format {tbr, ..}| tbr.map(|x| -x as i64));
   }
-  println!("DBG: Filtered video formats: {}", ytdlp::FormatVec(formats.clone()));
+  log::debug!("DBG: Filtered video formats: {}", ytdlp::FormatVec(formats.clone()));
   if formats.is_empty() {
     Err(anyhow!("Sorry, file is too big or you have exluded all formats"))
   } else {
     // let Format {vcodec, acodec, video_ext, audio_ext, ..} = formats[0];
-    // println!("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
+    // log::info("Chosen vcodec: {:?}, acodec: {:?}, video_ext: {:?}, audio_ext: {:?}", vcodec, acodec, video_ext, audio_ext);
     Ok(formats[0].clone())
   }
 }
 
 
 pub fn choose_format(conf: &Config, userconf: &UserConfig, video: &ytdlp::Video) -> Result<ChosenFormat> {
-  println!("DBG: All formats: {}", ytdlp::FormatVec(video.formats.clone()));
+  log::debug!("DBG: All formats: {}", ytdlp::FormatVec(video.formats.clone()));
   let res = 
     match userconf {
       UserConfig {mode: Mode::Video, ..} =>

@@ -100,8 +100,8 @@ pub struct Video {
   pub video_ext: Option<String>,
   #[serde(default)]
   pub audio_ext: Option<String>,
-//  #[serde(default)]
-//  pub vbr: f64,
+  //  #[serde(default)]
+  //  pub vbr: f64,
   pub format: String,
   pub format_id: String,
   pub formats: Vec<Format>,
@@ -126,22 +126,22 @@ impl std::fmt::Display for Video {
 pub async fn describe(url: url::Url) -> Result<Video> {
   let mut cmd = Command::new("yt-dlp");
   cmd.arg("-j").arg(url.to_string());
-  println!("ytdlp::describe {:?}", &cmd);
+  log::info!("ytdlp::describe {:?}", &cmd);
   let output = cmd.output();
   let output = output.await?;
 
   if !output.status.success() {
     // Err(output.stderr.to_string())
-    println!("stdout: {:?}\nstderr: {:?}",
-             std::str::from_utf8(&output.stdout).unwrap(),
-             std::str::from_utf8(&output.stderr).unwrap());
+    log::error!("stdout: {:?}\nstderr: {:?}",
+                std::str::from_utf8(&output.stdout).unwrap(),
+                std::str::from_utf8(&output.stderr).unwrap());
     Err(Error::msg("Command describe failed"))
   } else { Ok(()) }?;
 
   // let _res_raw : serde_json::Value = serde_json::from_slice(&output.stdout)?;
   let result = serde_json::from_slice::<Video>(&output.stdout)
     .context("Could not parse ytdlp::describe response")?;
-    
+  
   Ok(result)
 }
 
@@ -152,18 +152,18 @@ pub async fn download(url: url::Url, filename: String, format_id: Option<String>
     cmd.arg("-f").arg(format_id);
   }
   cmd.arg(url.to_string());
-  println!("ytdlp::download {:?}", &cmd);
+  log::info!("ytdlp::download {:?}", &cmd);
   let output = cmd.output().await?;
 
   if !output.status.success() {
     // Err(output.stderr.to_string())
-    println!("stdout: {:?}\nstderr: {:?}",
-             std::str::from_utf8(&output.stdout).unwrap(),
-             std::str::from_utf8(&output.stderr).unwrap());
+    log::error!("stdout: {:?}\nstderr: {:?}",
+                std::str::from_utf8(&output.stdout).unwrap(),
+                std::str::from_utf8(&output.stderr).unwrap());
     Err(Error::msg("Command download failed"))
   } else { Ok(()) }?;
 
   // let result : Video = serde_json::from_slice(&output.stdout)?;
-    
+  
   Ok(())
 }
