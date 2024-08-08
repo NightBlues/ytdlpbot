@@ -134,13 +134,15 @@ pub async fn send_video(
     ("chat_id", chat_id.to_string()),
     ("caption", caption),
   ]);
-  let file = tokio::fs::File::open(video).await?;
+  let file = tokio::fs::File::open(&video).await?;
   let stream = tokio_util::codec::FramedRead::new(
     file, tokio_util::codec::BytesCodec::new());
   use reqwest::multipart::{Part, Form};
+  let filename_ext = video.split(".").last().unwrap_or("mp4");
+  let mime = format!("video/{}", filename_ext);
   let part = Part::stream(reqwest::Body::wrap_stream(stream))
-    .file_name("test.mp4")
-    .mime_str("video/mp4")?;
+    .file_name(video.clone())
+    .mime_str(mime.as_str())?;
   // todo: use libmagic to set mime type
   let data = Form::new().part("video", part);
   let res = request.multipart(data).send().await?;
