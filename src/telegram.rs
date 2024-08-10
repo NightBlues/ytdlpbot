@@ -1,6 +1,6 @@
 // use std::collections::hash_map::HashMap;
 use std::vec::Vec;
-use anyhow::{Result, Context};
+use anyhow::{Result, Context, anyhow};
 
 
 fn url_get_updates(token: &String) -> String /* dyn reqwest::IntoUrl */ {
@@ -150,6 +150,9 @@ pub async fn send_video(
   let res = res.json::<messages::SendMessageResponse>().await
     .context("Could not parse sendVideo response")?;
   log::debug!("{}", res);
+  if !res.is_ok() {
+    return Err(anyhow!("Could not send Video: {}", res.description));
+  }
   
   Ok(())
 }
@@ -174,6 +177,7 @@ pub async fn send_audio(
   let data = Form::new().part("audio", part);
   let res = request.multipart(data).send().await?;
   // let res = res.json::<serde_json::Value>().await?;
+  // {"description":"Request Entity Too Large","error_code":413,"ok":false}
   let res = res.json::<messages::SendMessageResponse>().await
     .context("Could not parse sendAudio response")?;
   log::debug!("{}", res);

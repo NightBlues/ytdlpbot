@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 //
 //
 fn unknown() -> String {
-    "UnknownPidor".to_string()
+    "UnspecifiedUsername".to_string()
 } 
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -202,9 +202,21 @@ pub struct SendMessageResponse {
   #[serde(default)]
   pub result: Option<SendMessageResponseInner>,
 }
+// Error exapmple:
+// {"description":"Request Entity Too Large","error_code":413,"ok":false}
+
+impl SendMessageResponse {
+  pub fn is_ok(&self) -> bool {
+    self.ok && self.result.is_some()
+  }
+}
 
 impl fmt::Display for SendMessageResponse {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{:#?}", self.result)
+    if self.is_ok() {
+      write!(f, "{:#?}", self.result)
+    } else {
+      write!(f, "Error {:?}: {}", self.error_code, self.description)
+    }
   }
 }

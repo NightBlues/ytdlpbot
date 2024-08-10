@@ -87,6 +87,9 @@ fn choose_format_video(conf: &Config, userconf: &UserConfig, video: &ytdlp::Vide
         (_, _, false) => Some(format.clone()),
       }
     })
+    // apply filsize filter again after posible merging with audio
+    .filter(|x| x.get_filesize()
+            .map_or(false, |filesize| filesize < max_filesize))
     .filter(|format| {
       // exclude too shitty resolutions if not Awful
       vquality == Quality::Awful || format.height.unwrap_or(0) >= 360
