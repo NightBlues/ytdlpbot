@@ -6,6 +6,7 @@ mod telegram_messages;
 mod telegram;
 mod ytdlp;
 mod user_state;
+mod ffmpeg;
 mod format_chooser;
 mod commands;
 

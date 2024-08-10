@@ -69,7 +69,7 @@ impl fmt::Display for Format {
     let (video, audio) = self.get_video_audio();
     let filesize = self.get_filesize();
 
-    write!(f, "{{{}: {} {} {:?} {:?}}}", format_id, video, audio, tbr, filesize)
+    write!(f, "{{{}: {} {} {:?} size {:?}}}", format_id, video, audio, tbr, filesize)
   }
 }
 
@@ -109,7 +109,7 @@ pub struct Video {
   pub filesize: Option<i64>,
   #[serde(default)]
   pub filesize_approx: Option<i64>,
-  pub duration: f64,
+  pub duration: Option<f64>,
   pub tbr: Option<f64>,
   pub abr: Option<f64>,
   pub asr: Option<f64>,
@@ -125,7 +125,7 @@ impl Video {
 
 impl std::fmt::Display for Video {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "Video: {}.{} {} {:?}bytes {}secs",
+    write!(f, "Video: {}.{} {} {:?}bytes {:?}secs",
            self.id, self.ext, self.title, self.get_filesize(), self.duration)
   }
 }

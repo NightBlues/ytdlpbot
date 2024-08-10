@@ -4,9 +4,11 @@ use crate::telegram;
 use crate::utils;
 use telegram::IncomeMessage;
 use crate::ytdlp;
-use crate::user_state::{State, Mode, Quality, UserConfig};
+use crate::user_state::{State, Mode, Quality, UserConfig, CutInterval};
 use crate::config::Config;
 use crate::format_chooser::{ChosenFormat, choose_format};
+use crate::ffmpeg;
+
 
 // Handle download command
 async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url::Url, message_id: i64) -> Result<()> {
@@ -22,9 +24,15 @@ async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url
   
   // let filename = uuid::Uuid::new_v4().to_string();
   let filename = format!("{}_{}", chat_id, &video.id);
-  let expected_filename = format!("{}/{}", conf.download_dir, filename);
-  ytdlp::download(url.clone(), expected_filename, format_id).await?;
+  let filename_tpl = format!("{}/{}.%(ext)s", conf.download_dir, filename);
+  ytdlp::download(url.clone(), filename_tpl, format_id).await?;
   let full_filename = utils::find_file_pat(&conf.download_dir, &filename)?;
+  let full_filename =
+    if let Some(cut_interval) = userconf.cut_interval {
+      ffmpeg::cut(&full_filename, cut_interval).await?
+    } else {
+      full_filename
+    };
   match userconf.mode {
     Mode::Video =>
       telegram::send_video(&conf.telegram_token, chat_id, video.title.clone(), full_filename.clone()).await?,
@@ -36,6 +44,7 @@ async fn download_url_inner(conf: &Config, state: &State, chat_id: i64, url: url
   }
   telegram::delete_message(
     &conf.telegram_token, chat_id, message_id).await?;
+  state.set_cut_inteval(chat_id, None).await;
   Ok(())
 }
 
@@ -141,6 +150,17 @@ pub async fn react(conf: &Config, state: &State, msg: &IncomeMessage) -> Result<
             &conf.telegram_token, chat_id, msg).await?;
           Ok(())
         },
+        ["/cut_interval", start, end] => {
+          let cut_interval = CutInterval::parse(start, end)?;
+          let UserConfig {cut_interval, .. } =
+            state.set_cut_inteval(chat_id, Some(cut_interval)).await;
+          let msg = format!("Set video cut interval to {:?}",
+                            cut_interval);
+          telegram::send_message(
+            &conf.telegram_token, chat_id, msg).await?;
+          Ok(())
+        },
+
         _ =>  {
           telegram::send_message(
             &conf.telegram_token, chat_id,

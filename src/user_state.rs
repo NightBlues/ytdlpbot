@@ -1,5 +1,5 @@
 use tokio::sync::RwLock;
-// use anyhow::{Result, anyhow};
+use anyhow::{Result};
 // use itertools::Itertools;
 use lru::LruCache;
 
@@ -16,6 +16,26 @@ pub enum Quality {
   Awful,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CutInterval {
+  pub start: i64,
+  pub end: i64,  
+}
+
+impl CutInterval {
+  pub fn parse(s: &str, e: &str) -> Result<Self> {
+    let start = s.parse::<i64>()?;
+    let end = e.parse::<i64>()?;
+    Ok(CutInterval {start, end})
+  }
+}
+
+impl std::fmt::Display for CutInterval {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}-{}", self.start, self.end)
+  }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserConfig {
@@ -23,20 +43,26 @@ pub struct UserConfig {
   pub aquality: Quality,
   pub vquality: Quality,
   pub vcodec_exclude: Vec<String>,
+  pub cut_interval: Option<CutInterval>,
 }
 
 impl std::fmt::Display for UserConfig {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let UserConfig {mode, aquality, vquality, vcodec_exclude} = (*self).clone();
+    let UserConfig {mode, aquality, vquality, vcodec_exclude,
+                    cut_interval} = (*self).clone();
     let vcodecs = vcodec_exclude.join(",");
-    write!(f, "download mode: {:?}\naudio quality: {:?}\nvideo quality: {:?}\nvideo codecs excluded: {}\n",
-           mode, aquality, vquality, vcodecs)
+    let cut_interval = match cut_interval {
+      None => String::new(),
+      Some(i) => format!("{}", i)
+    };
+    write!(f, "download mode: {:?}\naudio quality: {:?}\nvideo quality: {:?}\nvideo codecs excluded: {}\ncut interval: {}\n",
+           mode, aquality, vquality, vcodecs, cut_interval)
   }
 }
 
 impl UserConfig {
   pub fn new() -> UserConfig {
-    UserConfig {mode: Mode::Video, aquality: Quality::Low, vquality: Quality::Low, vcodec_exclude: vec![]}
+    UserConfig {mode: Mode::Video, aquality: Quality::Low, vquality: Quality::Low, vcodec_exclude: vec![], cut_interval: None}
   }
 }
 
@@ -106,6 +132,11 @@ impl State {
   pub async fn set_vcodec_exclude(self: &State, chat_id: i64, vcodec_exclude: Vec<String>) -> UserConfig {
     self.update_userconfig(chat_id,
                            |val| UserConfig {vcodec_exclude, .. val}).await
+  }
+
+  pub async fn set_cut_inteval(self: &State, chat_id: i64, cut_interval: Option<CutInterval>) -> UserConfig {
+    self.update_userconfig(chat_id,
+                           |val| UserConfig {cut_interval, .. val}).await
   }
 
 
